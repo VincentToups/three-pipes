@@ -11,11 +11,11 @@ concatenative languages is their great terseness and, regularity, and
 expressiveness.  Stack languages are more Lispy than Lisp!  Now all
 that power is right in your Emacs Lisp code:
 
-   (||| 4 4 +) ; -> 8
+    (||| 4 4 +) ; -> 8
 
-   (||| "Hello World!" 10 
-        ((dup <1>insert) dip 1 - 0 >) loop-while)
-   ;; prints "Hello World" ten times
+    (||| "Hello World!" 10 
+        ((dup <1>insert) dip 1 - dup 0 >) loop-while)
+    ;; prints "Hello World" ten times
 
 Usage
 =====
