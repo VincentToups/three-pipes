@@ -304,6 +304,8 @@ them."
  (let ((x 10)) (||| `,x 3 +))
  (||| 4 4 =))
 
+(provide 'three-pipes)
+
 
 
 

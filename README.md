@@ -17,6 +17,12 @@ that power is right in your Emacs Lisp code:
         ((dup <1>insert) dip 1 - 0 >) loop-while)
    ;; prints "Hello World" ten times
 
+Usage
+=====
+
+Put three-pipes.el on your load-path and then `(require
+'three-pipes)`.
+
 Basic Syntax
 ============
 
