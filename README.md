@@ -63,7 +63,7 @@ Words
 Three pipes supports a small vocabulary of built in words:
 
     dup dip swap if loop-while drop + - * / = equal eql concat append
-    cons
+    cons map reduce reduce-init filter
 
 And more words can be defined with the macros 
 

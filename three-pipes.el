@@ -66,12 +66,14 @@ DICT, usually 3p-*dicts*."
 words: <arity>symbol.  This function extracts the arity from a
 valid symbol name, or returns nil."
   (progn 
-	(string-match "<\\([0-9]+\\)>.*" name)
-	(let* ((start (match-beginning 1))
+	(let* ((mtc (string-match "<\\([0-9]+\\)>.*" name))
+		   (start (match-beginning 1))
 		   (end (match-end 1)))
-	  (if start 
+	  (if (and mtc start end) 
 		  (car (read-from-string (substring name start end)))
 		nil))))
+
+
 
 (defun 3p-join-str (lst delim)
   "Join the list of strings in LST with the delimeter DELIM."
@@ -232,22 +234,14 @@ them."
  + - * / < > <= >= equal eql equalp = concat append cons)
 
 ;;; Define swap
+;;; ( a b - b a )
 (3p-define-word-in-lisp swap 
   (let ((tmp (aref 3p-*stack* 3p-*stack-ptr*)))
 	(aset 3p-*stack* 3p-*stack-ptr* (aref 3p-*stack* (- 3p-*stack-ptr* 1)))
 	(aset 3p-*stack* (- 3p-*stack-ptr* 1) tmp)))
 
-;;; Define dip.
-;;; dip executes the quotation on the top of the stack on the stack resulting from poping the value beneath it.  
-;;; the popped value is restored after the word is executed.
-(3p-define-word-in-lisp dip 
-  (let ((quotation (3p-pop))
-        (top (3p-pop)))
-	(3p-push quotation)
-	(|||- call)
-	(3p-push top)))
-
 ;;; Call an anonymous 3p quotation.
+;;; ( qtn - ??? ) call the quotation 
 (3p-define-word-in-lisp call 
   (let* ((aword (3p-pop))
   		 (compiled (3p-get-compiled aword)))
@@ -256,9 +250,19 @@ them."
   		(3p-add-compiled aword compiled)
   		(funcall compiled)))))
 
+;;; Remove V from the stack, call qtn, push v back onto the stack
+;;; ( ... v qtn - ... v )
+(3p-define-word-in-lisp dip 
+  (let ((quotation (3p-pop))
+        (top (3p-pop)))
+	(3p-push quotation)
+	(|||- call)
+	(3p-push top)))
+
 ;;; 3p if : if the third element on the stack is true, execute the
 ;;; quotation located at the second element on the stack, otherwise
 ;;; execute the first element.
+;;; (condition trueqt falseqt - ??)
 (3p-define-word-in-lisp if
   (let* ((false-branch (3p-pop)) 
 		 (true-branch (3p-pop))
@@ -267,6 +271,7 @@ them."
     (|||- call)))
 
 ;;; While the quotation on the top of the stack returns t, repeat it.
+;;; (qtn - ??)
 (3p-define-word-in-lisp loop-while
   (let ((qtn (aref 3p-*stack* 3p-*stack-ptr*))
 		(res (progn (|||- call)
@@ -275,16 +280,75 @@ them."
 		   (setq res (3p-pop)))))
 
 ;;; reify the current stack into a list and push it onto the stack.
+;;; ( - stack)
 (3p-define-word-in-lisp current-stack 
   (3p-push (loop for i from 0 to 3p-*stack-ptr* collect (aref 3p-*stack* i))))
 
 ;;; duplicate the top of the stack
+;;; (a - a a)
 (3p-define-word-in-lisp dup 
   (3p-push (aref 3p-*stack* 3p-*stack-ptr*)))
 
 ;;; drop the top of the stack
+;;; (a - )
 (3p-define-word-in-lisp drop 
   (3p-pop))
+
+;;; map a quotation, expecting one argument on the stack and placing
+;;; one argument on the stack, across a list
+;;; (lst transform - lst)
+(3p-define-word-in-lisp map 
+  (let ((qtn (3p-pop))
+		(lst (3p-pop)))
+	(3p-push 
+	 (loop for element in lst do 
+		   (3p-push element)
+		   (3p-push qtn)
+		   (|||- call)
+		   collect (3p-pop)))))
+
+;;; reduce a list with a quotation applied repeatedly to the value
+;;; produced by applying to quotation to an accumlator and the first
+;;; remaining element of a list.
+;;; initially applied to the first two elements
+;;; (lst qtn - reduced value)
+(3p-define-word-in-lisp reduce 
+  (let ((qtn (3p-pop))
+        (lst (3p-pop)))
+	(3p-push (car lst))
+	(loop for element in (cdr lst) do 
+		  (3p-push element)
+		  (3p-push qtn)
+		  (|||- call))))
+
+;;; reduce a list with a quotation applied repeatedly to the value
+;;; produced by applying to quotation to an accumlator and the first
+;;; remaining element of a list.
+;;; initially applied to the first element and the value INIT 
+;;; (lst init reducer - reduced-value)
+(3p-define-word-in-lisp reduce-init
+  (let ((qtn (3p-pop))
+		(init (3p-pop))
+        (lst (3p-pop)))
+	(3p-push init)
+	(loop for element in lst do 
+		  (3p-push element)
+		  (3p-push qtn)
+		  (|||- call))))
+
+;; reverse the list on the top of the stack
+(3p-define-word reverse <1>reverse)
+
+;; filter LST by the quotation TEST
+;; (lst test - filtered-list)
+(3p-define-word-in-lisp filter 
+  (let ((test (3p-pop))
+        (lst (3p-pop)))
+    (3p-push 
+	 (loop for el in lst 
+		   do (3p-push el) (3p-push test) (|||- call)
+		   when (3p-pop)
+		   collect el))))
 
 ;;; Emit a message
 (3p-define-word message <1>message drop)
@@ -302,7 +366,11 @@ them."
  (||| nil 10 (dup '(swap cons) dip 1 - dup 0 >) loop-while drop)
  (||| 3 dup *)
  (let ((x 10)) (||| `,x 3 +))
- (||| 4 4 =))
+ (||| 4 4 =)
+ (||| (1 2 3 4) (1 +) map)
+ (||| (1 2 3 4) (+) reduce)
+ (||| (1 2 3 4) 10 (+) reduce-init)
+ (||| (1 2 3 4 5 6) (3 <) filter))
 
 (provide 'three-pipes)
 
